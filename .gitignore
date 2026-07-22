@@ -1,0 +1,16 @@
+# Môi trường ảo Python
+venv/
+env/
+__pycache__/
+*.pyc
+
+# File cấu hình chứa mật khẩu thật
+.env
+
+# Cơ sở dữ liệu SQLite (tránh upload thông tin người dùng)
+data/
+*.db
+*.sqlite3
+
+# Thư mục hệ thống OS
+.DS_Store
