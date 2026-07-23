@@ -60,8 +60,10 @@ async def start_copy(request: CopyRequest, db: Session = Depends(get_db)):
     res = requests.post(token_url, data=payload)
     token_data = res.json()
     
+    # ĐÃ SỬA: Ép Backend trả về lỗi chi tiết từ Google Cloud
     if "error" in token_data:
-        raise HTTPException(status_code=400, detail="Authentication failed or Auth Code expired.")
+        google_error = token_data.get('error_description', token_data.get('error', 'Unknown Error'))
+        raise HTTPException(status_code=400, detail=f"Google Error: {google_error}")
         
     refresh_token = token_data.get("refresh_token")
     if not refresh_token:
