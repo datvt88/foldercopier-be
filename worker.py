@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import redis  # Thêm thư viện redis
 from celery import Celery
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -12,7 +13,11 @@ CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/0
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
+# Khởi tạo Celery
 celery_app = Celery('tasks', broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
+
+# Khởi tạo Redis client cho bộ đếm thống kê (Tận dụng luôn URL của Broker)
+redis_client = redis.from_url(CELERY_BROKER_URL)
 
 def extract_id(url: str) -> str:
     match = re.search(r'[-\w]{25,}', url)
@@ -104,6 +109,14 @@ def copy_drive_task(self, source_link: str, dest_link: str):
             return current_count
 
         total_copied = copy_recursive(source_id, dest_id)
+        
+        # --- THÊM MỚI: TĂNG BIẾN ĐẾM THỐNG KÊ ---
+        try:
+            redis_client.incr("total_successful_copies")
+        except Exception:
+            pass # Bỏ qua âm thầm nếu Redis lỗi, không làm gián đoạn quy trình
+        # ----------------------------------------
+
         return {'progress': 100, 'message': f'Completed! Successfully duplicated {total_copied} items.'}
 
     except Exception as e:
