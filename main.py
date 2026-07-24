@@ -1,5 +1,6 @@
 import os
 import requests
+import redis
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -26,6 +27,10 @@ app.add_middleware(
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
+
+# Khởi tạo kết nối Redis để đọc dữ liệu thống kê
+redis_client = redis.from_url(CELERY_BROKER_URL, decode_responses=True)
 
 class CopyRequest(BaseModel):
     source_link: str
@@ -60,7 +65,7 @@ async def start_copy(request: CopyRequest, db: Session = Depends(get_db)):
     res = requests.post(token_url, data=payload)
     token_data = res.json()
     
-    # ĐÃ SỬA: Ép Backend trả về lỗi chi tiết từ Google Cloud
+    # Ép Backend trả về lỗi chi tiết từ Google Cloud
     if "error" in token_data:
         google_error = token_data.get('error_description', token_data.get('error', 'Unknown Error'))
         raise HTTPException(status_code=400, detail=f"Google Error: {google_error}")
@@ -88,3 +93,13 @@ async def get_status(task_id: str):
         "status": task_result.status,
         "info": task_result.info or {}
     }
+
+# --- API MỚI: LẤY THỐNG KÊ SỐ LƯỢT COPY ---
+@app.get("/api/stats")
+async def get_system_stats():
+    try:
+        count = redis_client.get("total_successful_copies")
+        return {"total_copies": int(count) if count else 0}
+    except Exception as e:
+        # Nếu Redis lỗi, trả về 0 để giao diện ẩn đi chứ không làm sập trang web
+        return {"total_copies": 0}
